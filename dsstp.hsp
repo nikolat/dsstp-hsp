@@ -1,0 +1,46 @@
+#module
+#include "kernel32.as"
+#define	FILE_MAP_READ 4
+#defcfunc getSakuraFMO
+	MAP_OBJ_NAME_SAKURA = "Sakura"
+	sharedMemSize = 1024 * 64
+	OpenFileMapping FILE_MAP_READ,FALSE,MAP_OBJ_NAME_SAKURA
+	hMapObjSakura = stat
+	if (hMapObjSakura==0) {
+		return ""
+	}
+	MapViewOfFile hMapObjSakura,FILE_MAP_READ,0,0,sharedMemSize
+	sharedMemPtr = stat
+	dupptr sharedMemVal, sharedMemPtr, sharedMemSize
+	sfmo = ""
+	for i, 1, length(sharedMemVal), 1
+		l = sharedMemVal(i)
+		b1 = (l & 0x000000FF) >> 0
+		b2 = (l & 0x0000FF00) >> 8
+		b3 = (l & 0x00FF0000) >> 16
+		b4 = (l & 0xFF000000) >> 24
+		sfmo += strf("%c%c%c%c", b1, b2, b3, b4)
+	next
+	UnmapViewOfFile sharedMemPtr
+	sharedMemPtr = 0
+	dim sharedMemVal, 1
+	CloseHandle hMapObjSakura
+	return sfmo
+#global
+
+#module
+#include "user32.as"
+#define	WM_COPYDATA 0x004A
+#deffunc sendDSSTP int hTarget, str msg
+	sdim data, strlen(msg)
+	data = msg
+	dim cds, 3
+	cds(0) = 9801			; dwData: id
+	cds(1) = strlen(data)	; cbData: length of request header
+	cds(2) = varptr(data)	; lpData: pointer of request header string
+	SendMessage hTarget, WM_COPYDATA, hwnd, varptr(cds)
+	if stat == 0 {
+		return 0
+	}
+	return 1
+#global

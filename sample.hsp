@@ -1,0 +1,122 @@
+#packopt name "dsstphsp"
+#packopt xsize 500
+#packopt ysize 400
+#packopt hide 1
+
+#include "mod_regexp.as"
+#module
+; "hwnd"とか指定するとhwndの配列が返ってくる 
+#deffunc getParamsFromSakuraFMO str param, str sfmo, array ret
+	re = "\\." + param + strf("%c", 1) + "([^\\r\\n]+)"
+	matches result, sfmo, re, 0, 0, 0
+	i = 0
+	repeat stat
+		split result(cnt), strf("%c", 1), r
+		ret(i) = r(1)
+		i += 1
+	loop
+	return
+#global
+
+#include "dsstp.hsp"
+#module
+#define	EM_GETLINE		0x00C4
+#define EM_GETLINECOUNT	0x00BA
+#define EM_SETSEL		0x00B1
+#define EM_REPLACESEL	0x00C2
+#define	WM_COPYDATA		0x004A
+; メインルーチン 
+#deffunc main
+	screen 0, 500, 400, 2
+	cls 3
+	title "DirectSSTP Sample"
+	sdim defaultScript, 4096
+	randomize
+	if rnd(2) {
+		defaultScript = {"
+			NOTIFY SSTP/1.1
+			Charset: Shift_JIS
+			Sender: HSP
+			Event: OnDive
+			Reference0: 道頓堀
+			Script: \\h\\s[5]どぼ～ん。\\w9\\w9\\u\\s[11]…\\w5…\\w5…\\w5…\\w5…。\\e
+			Option: notranslate
+			HWnd: "}
+	} else {
+		defaultScript = {"
+			EXECUTE SSTP/1.1
+			Charset: Shift_JIS
+			Sender: HSP
+			Command: GetProperty[baseware.version]
+			HWnd: "}
+	}
+	defaultScript += str(hwnd) + "\n\n"
+	pos 50, 50
+	mesbox defaultScript, 400, 150, 1
+	sendBoxHwnd = objinfo_hwnd(stat)
+	objsize 100
+	combox index, 100, ""
+	comboxId = stat
+	objsize 64
+	button "送信", *send_dsstp
+	sdim resScript, 4096
+	resScript = ""
+	mesbox resScript, 400, 100, 0
+	resBoxHwnd = objinfo_hwnd(stat)
+	gsel 0, 1
+	oncmd gosub *OnCopyData, WM_COPYDATA
+*refresh
+	sfmo = getSakuraFMO()
+	if sfmo == "" {
+		objprm comboxId, ""
+		objprm comboxId, 0
+	} else {
+		getParamsFromSakuraFMO "hwnd", sfmo, hwnds
+		getParamsFromSakuraFMO "name", sfmo, names
+		target_names = ""
+		repeat length(names)
+			target_names += names(cnt) + "\n"
+		loop
+		if (index >= length(names)) {
+			index = length(names) - 1
+		}
+		objprm comboxId, target_names
+		objprm comboxId, index
+	}
+	wait 500
+	goto *refresh
+*send_dsstp
+	sendmsg resBoxHwnd, EM_SETSEL, 0, -1
+	sendmsg resBoxHwnd, EM_REPLACESEL, , ""
+	sendmsg sendBoxHwnd, EM_GETLINECOUNT, 0, 0
+	l = stat
+	sdim s, 4096
+	i = 0
+	repeat l
+		sdim buf, 4096 : wpoke buf, , 0x0FFF
+		sendmsg sendBoxHwnd, EM_GETLINE, cnt, varptr(buf)
+		poke s, i, buf + "\n"
+		i += strsize
+	loop
+	poke s, i, 0
+	hwndTarget = int(hwnds(index))
+	sendDSSTP hwndTarget, s
+	wait 500
+	goto *refresh
+*OnCopyData
+	dupptr cds, lParam, 12
+	data_id   = cds(0)
+	data_size = cds(1)
+	dupptr data_ref, cds(2), data_size
+	if data_id == 9801 {
+	    sdim data, data_size
+	    memcpy data, data_ref, data_size
+	    sendmsg resBoxHwnd, EM_SETSEL, 0, -1
+	    sendmsg resBoxHwnd, EM_REPLACESEL, , data
+	}
+	dim cds, 1
+	dim data_ref, 1
+	return
+#global
+
+	main
